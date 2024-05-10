@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
-from marshmallow import fields
+from marshmallow import fields,ValidationError
 
 
 app = Flask(__name__)
@@ -27,6 +27,17 @@ class Team(db.Model):
     id = db.Column(db.Integer, primary_key = True)
     team_name = db.Column(db.String(40))
     league = db.Column(db.String(40))
+    
+    def save_to_db(self):
+        """
+        Saves the instance of the Team in database
+        
+        Returns:
+            self (team): The instance of the Team that was saved
+        """
+        db.session.add(self)
+        db.session.commit()
+        return self
     
     def __init__(self, team_name, league):
         """Initialize a new team instance
@@ -56,6 +67,7 @@ class TeamSchema(SQLAlchemyAutoSchema):
         #configuring specific options for model
         model = Team
         sqla_session = db.session
+        load_instance = True
     
     #fields definition
     id = fields.Number(dump_only = True)
@@ -79,6 +91,22 @@ def index():
     teams = team_schema.dump(get_teams) 
     return make_response(jsonify({"teams":teams}))
     
+
+@app.route('/teams', methods = ['POST'])
+def create_team():
+    data = request.get_json()
+    team_schema = TeamSchema()
+    try: 
+        team = team_schema.load(data)    #add validation for handling unknown fields
+        result = team_schema.dump(team.save_to_db())
+        return make_response(jsonify({"teams": result}))
+    except ValidationError as err:
+        return make_response(err.messages)
+
+    
+@app.route('/jozo', methods=['GET'])
+def jozo():
+    return make_response("hello")
     
     
 if __name__ == "__main__":
