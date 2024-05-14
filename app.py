@@ -90,23 +90,98 @@ def index():
     team_schema = TeamSchema(many = True)
     teams = team_schema.dump(get_teams) 
     return make_response(jsonify({"teams":teams}))
+
+
+@app.route('/teams/<id>', methods = ['GET'])
+def get_team_by_id(id):
+    """
+    This endpoint retrieves detailed information about a team from the database
+    using its unique identifier. It is specifically designed to handle GET requests where
+    the id is a mandatory URL parameter.
+    
+    Parameters:
+    id (int): The unique identifier of the team. This ID is used to fetch and update the team record.
+    
+    Response: Flask response object with JSON data containing team based on id
+    """
+    get_team = Team.query.get_or_404(id)
+    team_schema = TeamSchema()
+    team = team_schema.dump(get_team)
+    return make_response(jsonify({"team":team}))
+
+
+@app.route('/teams/<id>', methods = ['PUT'])
+def update_team_by_id(id):
+    """
+    This endpoint updates the information of a team identified by its unique ID with the provided JSON payload.
+    It allows modification of specific fields (team_name, league) within the team record.
+
+    Parameters:
+    id (int): The unique identifier of the team. This ID is used to fetch and update the team record.
+
+    Response: Returns a Flask response object containing the updated team data in JSON format.
+    """
+    data = request.get_json()
+    get_team = Team.query.get_or_404(id)
+    column_to_put = {
+        "team_name": lambda data : setattr(get_team, 'team_name', data),
+        "league": lambda data : setattr(get_team, "league", data)
+    }
+    for key,value in data.items():
+        if key in column_to_put:
+            column_to_put[key](value)
+    db.session.add(get_team)
+    db.session.commit()
+    team_schema = TeamSchema()
+    team = team_schema.dump(get_team)
+    return make_response(jsonify({"team": team}))
+            
+            
+@app.route('/teams/<id>', methods = ['DELETE'])
+def delete_team_by_id(id):
+    """
+    This endpoint is used to delete a specific team from the database identified by its 
+    unique identifier (id). When a DELETE request is made to this endpoint with a valid id, 
+    the specified team is removed from the database. If no team exists with the provided id,
+    a 404 Not Found error is returned.
+    
+    Response: The endpoint does not return any content but indicates the success of the operation
+    with an HTTP status code.
+    """
+    get_team = Team.query.get_or_404(id)
+    db.session.delete(get_team)
+    db.session.commit()
+    return make_response("", 204)
     
 
 @app.route('/teams', methods = ['POST'])
 def create_team():
+    """
+    Create a new team instance and store it in the database.
+
+    This endpoint handles POST requests to add new teams. It expects a JSON object
+    with the necessary information to create a Team object.JSON data is validated
+    and deserialized into a Team instance, which is then saved to the database.
+
+    Returns:
+        jsonify: On successful creation, it returns the newly created team data as JSON
+                 with a status code of 201 (Created).
+        make_response: If the input data fails validation, it returns the error messages
+                       as JSON with a status code of 400 (Bad Request).
+
+    Raises:
+        ValidationError: An error is raised if the input JSON data does not conform to the 
+                         expected schema, including missing required fields or improper data types.
+    """
     data = request.get_json()
     team_schema = TeamSchema()
     try: 
-        team = team_schema.load(data)    #add validation for handling unknown fields
+        team = team_schema.load(data)    
         result = team_schema.dump(team.save_to_db())
         return make_response(jsonify({"teams": result}))
     except ValidationError as err:
         return make_response(err.messages)
-
-    
-@app.route('/jozo', methods=['GET'])
-def jozo():
-    return make_response("hello")
+    #add validation for handling unknown fields
     
     
 if __name__ == "__main__":
